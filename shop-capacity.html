@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shop capacity — one core</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  --bg: #E3E7EB;
+  --panel: #F6F7F8;
+  --panel2: #ECEFF2;
+  --ink: #17202A;
+  --muted: #5E6B78;
+  --line: #C6CED6;
+  --line-soft: #DDE3E8;
+  --steel: #2E6A97;
+  --steel-soft: #D9E6F0;
+  --ok: #2E8B57;
+  --warn: #D49B00;
+  --hot: #D2431B;
+  --hot-soft: #F8DDD3;
+  --idle: #98A2AC;
+  --hex: #2E6A97;
+  --sr: #7457B8;
+  --dowel: #BF7318;
+  --plug: #248F80;
+  --focus: #2E6A97;
+  --floor: #D8DDE2;
+  --grid: #C2CAD1;
+  font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181D; --panel: #1C2229; --panel2: #242C34; --ink: #E6EBF0; --muted: #98A5B2;
+    --line: #333D48; --line-soft: #2A333D; --steel: #5A9BD1; --steel-soft: #23384B; --hot-soft: #4A2A22;
+    --idle: #5C6771; --floor: #1E252C; --grid: #2C353F; --hex: #5A9BD1; --sr: #9C84D8; --dowel: #D9903A; --plug: #3FAE9E; --focus: #5A9BD1;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181D; --panel: #1C2229; --panel2: #242C34; --ink: #E6EBF0; --muted: #98A5B2;
+  --line: #333D48; --line-soft: #2A333D; --steel: #5A9BD1; --steel-soft: #23384B; --hot-soft: #4A2A22;
+  --idle: #5C6771; --floor: #1E252C; --grid: #2C353F; --hex: #5A9BD1; --sr: #9C84D8; --dowel: #D9903A; --plug: #3FAE9E; --focus: #5A9BD1;
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-size: 14px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+#app { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+header { display: flex; align-items: center; gap: 18px; padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header h1 { font-size: 15px; font-weight: 600; margin: 0 8px 0 0; letter-spacing: -0.01em; }
+header .g { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+header .g strong { color: var(--ink); font-weight: 500; }
+header .spacer { flex: 1; }
+header .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+header .seg button { background: transparent; border: 0; padding: 4px 10px; cursor: pointer; color: var(--muted); }
+header .seg button[aria-pressed="true"] { background: var(--steel); color: #fff; }
+header .link { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 4px 6px; text-decoration: underline; text-underline-offset: 2px; }
+header .link:hover { color: var(--ink); }
+
+main { display: grid; grid-template-columns: 350px minmax(0, 1fr) 330px; min-height: 0; }
+aside { overflow-y: auto; padding: 12px 14px 24px; min-height: 0; }
+#controls { border-right: 1px solid var(--line); background: var(--panel); }
+#results { border-left: 1px solid var(--line); background: var(--panel); }
+#floor { position: relative; min-width: 0; min-height: 0; background: var(--floor); }
+#floor canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+/* steppers, inputs */
+.num { width: 58px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 3px; background: var(--panel); text-align: right; }
+.num.w4 { width: 74px; }
+.num.w3 { width: 50px; }
+.step { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; background: var(--panel); }
+.step button { width: 26px; height: 26px; border: 0; background: transparent; cursor: pointer; color: var(--muted); font-size: 15px; line-height: 1; }
+.step button:hover { background: var(--panel2); color: var(--ink); }
+.step input { width: 34px; border: 0; border-left: 1px solid var(--line-soft); border-right: 1px solid var(--line-soft); text-align: center; padding: 3px 0; background: transparent; -moz-appearance: textfield; }
+.step input::-webkit-inner-spin-button, .step input::-webkit-outer-spin-button { -webkit-appearance: none; }
+select { padding: 3px 4px; border: 1px solid var(--line); border-radius: 3px; background: var(--panel); }
+
+/* controls */
+.sec { border-top: 1px solid var(--line); padding: 10px 0 4px; }
+.sec:first-child { border-top: 0; padding-top: 2px; }
+.sec > h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--muted); }
+.pool { padding: 8px 8px 8px 10px; margin: 0 -8px 4px; border-left: 3px solid transparent; border-radius: 3px; }
+.pool.sel { background: var(--steel-soft); }
+.pool.bn { border-left-color: var(--hot); }
+.pool .head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.pool .head .name { font-weight: 600; }
+.pool .head .util { color: var(--muted); }
+.pool .head .util.hot { color: var(--hot); font-weight: 600; }
+.row { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 4px 0; color: var(--muted); }
+.row label { display: inline-flex; align-items: center; gap: 6px; }
+.row .rad { display: inline-flex; gap: 10px; }
+.row .rad label { gap: 4px; }
+.blk { padding: 8px 0; border-top: 1px dashed var(--line-soft); }
+.blk .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.blk .head .name { font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+.blk .head .name i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.blk .body { display: grid; grid-template-columns: 62px 1fr; gap: 6px 8px; margin-top: 8px; align-items: center; color: var(--muted); }
+.blk .body .k { color: var(--muted); }
+.blk .body .v { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.ops { display: grid; grid-template-columns: auto auto auto auto; gap: 4px 8px; align-items: center; }
+.ops .opn { padding: 3px 6px; width: 62px; border: 1px solid var(--line); border-radius: 3px; background: var(--panel); }
+.ops .x { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 2px 4px; }
+.ops .x:hover { color: var(--hot); }
+.addop { background: none; border: 1px dashed var(--line); border-radius: 3px; color: var(--muted); cursor: pointer; padding: 2px 8px; margin-top: 2px; }
+.tog { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 2px 6px; }
+.note { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; }
+
+/* results */
+.hero { padding: 6px 0 12px; border-bottom: 1px solid var(--line); }
+.hero .lead { color: var(--muted); margin: 0; }
+.hero .big { font-size: 44px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.05; margin: 2px 0 6px; }
+.hero .big small { font-size: 18px; font-weight: 500; color: var(--muted); margin-left: 6px; letter-spacing: 0; }
+.hero .bn { margin: 0; color: var(--hot); font-weight: 500; }
+.hero .bn.ok { color: var(--ok); }
+.rs { padding: 12px 0 6px; border-bottom: 1px solid var(--line); }
+.rs:last-child { border-bottom: 0; }
+.rs h3 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--muted); }
+table.t { width: 100%; border-collapse: collapse; }
+table.t th { text-align: right; font-weight: 500; color: var(--muted); padding: 2px 0 6px; font-size: 12.5px; }
+table.t th:first-child, table.t td:first-child { text-align: left; }
+table.t td { padding: 4px 0; border-top: 1px solid var(--line-soft); text-align: right; white-space: nowrap; }
+table.t td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 7px; vertical-align: -1px; }
+table.t td.lim { color: var(--muted); font-size: 12.5px; }
+table.t tr.bn td { color: var(--hot); }
+table.t tr.bn td.lim { color: var(--hot); font-weight: 500; }
+.bars { display: grid; grid-template-columns: 110px 1fr 44px; gap: 6px 8px; align-items: center; }
+.bars .n { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bars .n.bn { color: var(--hot); font-weight: 500; }
+.bars .bar { height: 10px; background: var(--panel2); border-radius: 2px; overflow: hidden; position: relative; }
+.bars .bar i { display: block; height: 100%; background: var(--steel); }
+.bars .bar i.hot { background: var(--hot); }
+.bars .bar i.idle { background: var(--idle); }
+.bars .p { text-align: right; color: var(--muted); }
+.wip { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; }
+.wip .n { color: var(--muted); }
+.wip .v { text-align: right; }
+.wip .none { color: var(--muted); }
+.ppl { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; }
+.ppl .n { color: var(--muted); }
+.ppl .v { text-align: right; }
+.ppl .tot { font-weight: 600; border-top: 1px solid var(--line-soft); padding-top: 4px; }
+
+/* floor overlays */
+#tip { position: absolute; pointer-events: none; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; padding: 6px 9px; font-size: 12.5px; box-shadow: 0 2px 8px rgba(0,0,0,.12); display: none; max-width: 240px; line-height: 1.35; }
+#tip b { display: block; margin-bottom: 2px; }
+#tip .m { color: var(--muted); }
+.legend { position: absolute; left: 10px; bottom: 10px; display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); background: color-mix(in srgb, var(--panel) 85%, transparent); padding: 4px 8px; border-radius: 3px; pointer-events: none; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.hint { position: absolute; right: 10px; top: 10px; font-size: 12px; color: var(--muted); background: color-mix(in srgb, var(--panel) 85%, transparent); padding: 4px 8px; border-radius: 3px; pointer-events: none; }
+.hint.hide { display: none; }
+
+/* tabs (mobile) */
+nav.tabs { display: none; }
+@media (max-width: 1000px) {
+  #app { grid-template-rows: auto minmax(0, 1fr) auto; }
+  header { gap: 10px 14px; padding: 8px 12px; }
+  header h1 { width: 100%; margin: 0; font-size: 14px; }
+  header .g { font-size: 13px; }
+  main { grid-template-columns: 1fr; }
+  #controls, #results { border: 0; display: none; }
+  #floor { display: none; min-height: 60vh; }
+  main[data-tab="setup"] #controls, main[data-tab="floor"] #floor, main[data-tab="results"] #results { display: block; }
+  nav.tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); background: var(--panel); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  nav.tabs button { padding: 10px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+  nav.tabs button[aria-selected="true"] { color: var(--steel); box-shadow: inset 0 -2px 0 var(--steel); }
+  .hero .big { font-size: 38px; }
+  .hint { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .hint { transition: none; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Shop capacity — one core</h1>
+    <div class="g">Shifts <span class="step"><button data-g="shifts" data-d="-1" aria-label="Fewer shifts">−</button><input id="shifts" type="number" min="1" max="4" step="1" value="1"><button data-g="shifts" data-d="1" aria-label="More shifts">+</button></span></div>
+    <div class="g">of <input id="shiftHours" class="num w3" type="number" min="1" max="24" step="0.5" value="10"> hours</div>
+    <div class="g">Shift rule <span class="seg"><button id="modeCont" aria-pressed="true" title="Ops carry over the shift boundary with no penalty">Continuous</button><button id="modeDisc" aria-pressed="false" title="Only whole ops that fit inside a shift count">Discrete</button></span></div>
+    <div class="spacer"></div>
+    <button class="link" id="reset">Reset to starting values</button>
+  </header>
+  <main data-tab="floor">
+    <aside id="controls" aria-label="Setup"></aside>
+    <section id="floor" aria-label="Shop floor">
+      <canvas id="c3d"></canvas>
+      <div id="tip"></div>
+      <div class="hint" id="hint">Drag to orbit · scroll to zoom · click a machine to edit</div>
+      <div class="legend"><span><i style="background:var(--ok)"></i>running</span><span><i style="background:var(--idle)"></i>no operator</span><span><i style="background:var(--hot)"></i>bottleneck</span><span><i style="background:var(--warn); border-radius:2px"></i>WIP piling up</span></div>
+    </section>
+    <aside id="results" aria-label="Results"></aside>
+  </main>
+  <nav class="tabs" aria-label="Sections">
+    <button data-tab="setup" aria-selected="false">Setup</button>
+    <button data-tab="floor" aria-selected="true">Floor</button>
+    <button data-tab="results" aria-selected="false">Results</button>
+  </nav>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ===================== ENGINE ===================== */
+const DEFAULT_STATE = {
+  shifts: 1, shiftHours: 10, mode: 'continuous', supervisorRatio: 8,
+  pools: {
+    hexMill:    { label: 'Hex mills',      kind: 'mill',  staff: 'machinist', machines: 4, staffCount: 4, perStaff: 1, routing: 'flexible', split10: 2, split20: 2 },
+    srMill:     { label: 'Reflector mill', kind: 'mill',  staff: 'machinist', machines: 1, staffCount: 1, perStaff: 1, routing: 'flexible', split10: 1, split20: 0 },
+    dowelLathe: { label: 'Dowel lathe',    kind: 'lathe', staff: 'machinist', machines: 1, staffCount: 1, perStaff: 1 },
+    plugLathe:  { label: 'Plug lathe',     kind: 'lathe', staff: 'machinist', machines: 1, staffCount: 1, perStaff: 1 },
+    bandsaw:    { label: 'Bandsaw',        kind: 'saw',   staff: 'machinist', machines: 1, staffCount: 1, perStaff: 1 },
+    cmm:        { label: 'CMM',            kind: 'cmm',   staff: 'cmmer',     machines: 2, staffCount: 2, perStaff: 1 },
+    dowelGauge: { label: 'Dowel gauge',    kind: 'gauge', staff: 'cmmer',     machines: 1, staffCount: 1, perStaff: 1 },
+    plugGauge:  { label: 'Plug gauge',     kind: 'gauge', staff: 'cmmer',     machines: 1, staffCount: 1, perStaff: 1 },
+  },
+  blocks: {
+    hex:   { label: 'Hex block',      qtyPerCore: 850,   pool: 'hexMill',    machining: 'ops',  ops: [{ name: 'Op10', setup: 60, cut: 127 }, { name: 'Op20', setup: 60, cut: 49 }],
+             saw: { min: 30, batch: 1 },  inspect: { pool: 'cmm',        setup: 60, run: 120 }, yield: 1, reworkOp: 1 },
+    sr:    { label: 'Side reflector', qtyPerCore: 186,   pool: 'srMill',     machining: 'ops',  ops: [{ name: 'Op10', setup: 60, cut: 127 }, { name: 'Op20', setup: 60, cut: 49 }],
+             saw: { min: 30, batch: 1 },  inspect: { pool: 'cmm',        setup: 60, run: 120 }, yield: 1, reworkOp: 1 },
+    dowel: { label: 'Dowel',          qtyPerCore: 2864,  pool: 'dowelLathe', machining: 'rate', ratePer10hr: 250,
+             saw: { min: 5, batch: 250 }, inspect: { pool: 'dowelGauge', setup: 0,  run: 2 },   yield: 1, reworkOp: 0 },
+    plug:  { label: 'Plug',           qtyPerCore: 24420, pool: 'plugLathe',  machining: 'rate', ratePer10hr: 460,
+             saw: { min: 5, batch: 460 }, inspect: { pool: 'plugGauge',  setup: 0,  run: 2 },   yield: 1, reworkOp: 0 },
+  },
+};
+const BLOCK_ORDER = ['hex', 'sr', 'dowel', 'plug'];
+const POOL_ORDER = ['bandsaw', 'hexMill', 'srMill', 'dowelLathe', 'plugLathe', 'cmm', 'dowelGauge', 'plugGauge'];
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+function running(pool) { return Math.max(0, Math.min(pool.machines, pool.staffCount * pool.perStaff)); }
+function discreteCycleRate(opMins, shiftMin, nShifts = 60) {
+  if (!opMins.length || opMins.some(m => m <= 0)) return 0;
+  if (opMins.some(m => m > shiftMin)) return 0;
+  let idx = 0, done = 0;
+  for (let s = 0; s < nShifts; s++) { let t = 0; while (t + opMins[idx] <= shiftMin) { t += opMins[idx]; idx = (idx + 1) % opMins.length; if (idx === 0) done++; } }
+  return done / nShifts;
+}
+function pieceMinutes(block) {
+  const y = Math.min(1, Math.max(0.01, block.yield || 1)); const rw = 1 / y;
+  const out = { saw: block.saw.min / Math.max(1, block.saw.batch), inspect: (block.inspect.setup + block.inspect.run) * rw };
+  if (block.machining === 'ops') {
+    out.ops = block.ops.map((op, i) => ({ name: op.name, min: op.setup + op.cut, mult: i >= block.reworkOp ? rw : 1 }));
+    out.machTotal = out.ops.reduce((a, o) => a + o.min * o.mult, 0);
+  } else { const m = 600 / Math.max(0.0001, block.ratePer10hr); out.ops = [{ name: 'Turn', min: m, mult: rw }]; out.machTotal = m * rw; }
+  return out;
+}
+function compute(state) {
+  const shiftMin = state.shiftHours * 60, H = state.shifts * shiftMin, discrete = state.mode === 'discrete';
+  const R = {}; for (const k in state.pools) R[k] = running(state.pools[k]);
+  const blocks = {};
+  for (const key in state.blocks) {
+    const b = state.blocks[key], pm = pieceMinutes(b), pool = state.pools[b.pool], run = R[b.pool];
+    let machRate = 0, machDetail = '';
+    if (run > 0 && pm.machTotal > 0) {
+      if (b.machining === 'ops' && pool.routing === 'paired') {
+        const n10 = pool.split10, n20 = pool.split20, scale = (n10 + n20) > 0 ? Math.min(1, run / (n10 + n20)) : 0;
+        const r10 = n10 * scale, r20 = n20 * scale, o10 = pm.ops[0], o20 = pm.ops[1];
+        const rate10 = o10 ? (discrete ? r10 * state.shifts * Math.floor(shiftMin / o10.min) / o10.mult : r10 * H / (o10.min * o10.mult)) : Infinity;
+        const rate20 = o20 && o20.min > 0 ? (discrete ? r20 * state.shifts * Math.floor(shiftMin / o20.min) / o20.mult : r20 * H / (o20.min * o20.mult)) : Infinity;
+        // ops beyond the second, if any, ride on the op20 machines
+        let extra = 0; for (let i = 2; i < pm.ops.length; i++) extra += pm.ops[i].min * pm.ops[i].mult;
+        const rate20x = extra > 0 && o20 ? r20 * H / (o20.min * o20.mult + extra) : rate20;
+        machRate = Math.min(rate10, rate20x); machDetail = `${r10.toFixed(1)} on ${o10 ? o10.name : 'op10'}, ${r20.toFixed(1)} on ${o20 ? o20.name : 'op20'}`;
+      } else if (discrete) {
+        const base = discreteCycleRate(pm.ops.map(o => o.min), shiftMin);
+        const contY1 = shiftMin / pm.ops.reduce((a, o) => a + o.min, 0);
+        const yf = contY1 > 0 ? (shiftMin / pm.machTotal) / contY1 : 1;
+        machRate = run * state.shifts * base * yf;
+      } else machRate = run * H / pm.machTotal;
+    }
+    blocks[key] = { key, label: b.label, pm, machRate, machDetail, qty: b.qtyPerCore };
+  }
+  function usableMinutes(poolKey, demands) {
+    const cap = R[poolKey] * H; if (!discrete) return cap;
+    const total = demands.reduce((a, d) => a + d.rate * d.min, 0); if (total <= 0) return cap;
+    let usable = 0; for (const d of demands) { const w = (d.rate * d.min) / total; const per = d.min > 0 && d.min <= shiftMin ? Math.floor(shiftMin / d.min) * d.min : 0; usable += w * per; }
+    return R[poolKey] * state.shifts * usable;
+  }
+  const stages = {};
+  { const demands = Object.values(blocks).map(b => ({ rate: b.machRate, min: b.pm.saw }));
+    const cap = usableMinutes('bandsaw', demands), demand = demands.reduce((a, d) => a + d.rate * d.min, 0);
+    const f = demand > 0 ? Math.min(1, cap / demand) : 1;
+    stages.bandsaw = { demand, cap, factor: f, util: cap > 0 ? Math.min(1, demand / cap) : (demand > 0 ? 1 : 0) };
+    for (const b of Object.values(blocks)) { b.sawRate = b.machRate * f; b.millOut = b.sawRate; } }
+  for (const k in state.pools) { const p = state.pools[k]; if (p.kind === 'mill' || p.kind === 'lathe') {
+    const users = Object.values(blocks).filter(b => state.blocks[b.key].pool === k);
+    const demand = users.reduce((a, b) => a + b.millOut * b.pm.machTotal, 0), cap = R[k] * H;
+    stages[k] = { demand, cap, factor: 1, util: cap > 0 ? Math.min(1, demand / cap) : (demand > 0 ? 1 : 0) }; } }
+  const inspPools = [...new Set(Object.values(state.blocks).map(b => b.inspect.pool))];
+  for (const pk of inspPools) {
+    const users = Object.values(blocks).filter(b => state.blocks[b.key].inspect.pool === pk);
+    const demands = users.map(b => ({ rate: b.millOut, min: b.pm.inspect }));
+    const cap = usableMinutes(pk, demands), demand = demands.reduce((a, d) => a + d.rate * d.min, 0);
+    const f = demand > 0 ? Math.min(1, cap / demand) : 1;
+    stages[pk] = { demand, cap, factor: f, util: cap > 0 ? Math.min(1, demand / cap) : (demand > 0 ? 1 : 0) };
+    for (const b of users) { b.final = b.millOut * f; b.wipBeforeInspect = b.millOut - b.final; } }
+  let coreDays = 0, bottleneckBlock = null;
+  for (const b of Object.values(blocks)) {
+    const sb = state.blocks[b.key];
+    if (b.final <= 0) { b.limitKey = R[sb.pool] <= 0 ? sb.pool : (R.bandsaw <= 0 ? 'bandsaw' : sb.inspect.pool); b.limit = state.pools[b.limitKey].label + ' idle'; }
+    else if (stages[sb.inspect.pool].factor < 0.999) { b.limitKey = sb.inspect.pool; b.limit = state.pools[sb.inspect.pool].label; }
+    else if (stages.bandsaw.factor < 0.999) { b.limitKey = 'bandsaw'; b.limit = 'Bandsaw'; }
+    else { b.limitKey = sb.pool; b.limit = state.pools[sb.pool].label; }
+    b.coreDays = b.final > 0 ? b.qty / b.final : Infinity;
+    if (b.coreDays > coreDays || (b.coreDays === Infinity && coreDays !== Infinity)) { coreDays = b.coreDays; bottleneckBlock = b.key; }
+  }
+  let machinists = 0, cmmers = 0;
+  for (const k in state.pools) { const p = state.pools[k]; if (p.staff === 'machinist') machinists += p.staffCount; else cmmers += p.staffCount; }
+  const supervisors = Math.ceil((machinists + cmmers) / Math.max(1, state.supervisorRatio)), perShift = machinists + cmmers + supervisors;
+  return { H, shiftMin, running: R, blocks, stages, coreDays, bottleneckBlock,
+    bottleneckStage: bottleneckBlock ? blocks[bottleneckBlock].limitKey : null,
+    staff: { machinists, cmmers, supervisors, perShift, total: perShift * state.shifts } };
+}
+
+/* ===================== STATE / PERSISTENCE ===================== */
+const LS_KEY = 'shop-capacity-v1';
+let state = clone(DEFAULT_STATE), results = null, selectedPool = null;
+function loadState() {
+  try { const raw = localStorage.getItem(LS_KEY); if (!raw) return; const s = JSON.parse(raw);
+    if (s && s.pools && s.blocks && s.pools.hexMill && s.blocks.hex) state = s; } catch (e) { /* storage unavailable: start fresh */ }
+}
+function saveState() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
+
+/* ===================== FORMAT HELPERS ===================== */
+const fmt = {
+  n(v, d = 1) { if (!isFinite(v)) return '—'; if (Math.abs(v) >= 100) return Math.round(v).toLocaleString(); return v.toFixed(d); },
+  days(v) { if (!isFinite(v)) return '—'; if (v >= 100) return Math.round(v).toLocaleString(); return v.toFixed(1); },
+  pct(v) { return Math.round(v * 100) + '%'; },
+};
+const blockColor = k => `var(--${k})`;
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+/* ===================== CONTROLS ===================== */
+const $controls = document.getElementById('controls');
+function stepper(path, val, min, max, step, aria) {
+  return `<span class="step"><button data-step="${path}" data-d="-1" aria-label="Decrease ${aria}">−</button><input type="number" data-path="${path}" value="${val}" min="${min}" max="${max}" step="${step}" aria-label="${aria}"><button data-step="${path}" data-d="1" aria-label="Increase ${aria}">+</button></span>`;
+}
+function poolHTML(k) {
+  const p = state.pools[k], staffWord = p.staff === 'machinist' ? 'machinists' : 'CMMers', unit = p.kind === 'gauge' ? 'stations' : 'machines';
+  let html = `<div class="pool" data-pool="${k}"><div class="head"><span class="name">${esc(p.label)}</span><span class="util" data-util="${k}"></span></div>
+  <div class="row"><label>${unit} ${stepper(`pools.${k}.machines`, p.machines, 0, 40, 1, unit)}</label>
+  <label>${staffWord} ${stepper(`pools.${k}.staffCount`, p.staffCount, 0, 40, 1, staffWord)}</label>
+  <label>${unit} per person <input class="num w3" type="number" data-path="pools.${k}.perStaff" value="${p.perStaff}" min="0" max="10" step="0.5"></label></div>`;
+  if (p.kind === 'mill') {
+    html += `<div class="row"><span class="rad"><label><input type="radio" name="rt-${k}" data-path="pools.${k}.routing" value="flexible" ${p.routing === 'flexible' ? 'checked' : ''}> any op on any machine</label><label><input type="radio" name="rt-${k}" data-path="pools.${k}.routing" value="paired" ${p.routing === 'paired' ? 'checked' : ''}> dedicated op10 / op20</label></span></div>`;
+    if (p.routing === 'paired') html += `<div class="row"><label>on op10 ${stepper(`pools.${k}.split10`, p.split10, 0, 40, 1, 'op10 machines')}</label><label>on op20 ${stepper(`pools.${k}.split20`, p.split20, 0, 40, 1, 'op20 machines')}</label><span class="note" data-pairnote="${k}"></span></div>`;
+  }
+  return html + '</div>';
+}
+function blockHTML(k) {
+  const b = state.blocks[k];
+  let body = `<div class="k">Per core</div><div class="v"><input class="num w4" type="number" data-path="blocks.${k}.qtyPerCore" value="${b.qtyPerCore}" min="0" step="1"></div>
+  <div class="k">Bandsaw</div><div class="v"><input class="num" type="number" data-path="blocks.${k}.saw.min" value="${b.saw.min}" min="0" step="1"> min per <input class="num" type="number" data-path="blocks.${k}.saw.batch" value="${b.saw.batch}" min="1" step="1"> pcs</div>`;
+  if (b.machining === 'ops') {
+    let ops = `<div class="ops">`;
+    b.ops.forEach((op, i) => { ops += `<input class="opn" type="text" data-path="blocks.${k}.ops.${i}.name" value="${esc(op.name)}" aria-label="Op name"><span>setup <input class="num" type="number" data-path="blocks.${k}.ops.${i}.setup" value="${op.setup}" min="0" step="1"></span><span>cut <input class="num" type="number" data-path="blocks.${k}.ops.${i}.cut" value="${op.cut}" min="0" step="1"></span>${b.ops.length > 1 ? `<button class="x" data-delop="${k}:${i}" aria-label="Remove op">×</button>` : '<span></span>'}`; });
+    ops += `</div><button class="addop" data-addop="${k}">+ op</button>`;
+    body += `<div class="k">${esc(state.pools[b.pool].label)}</div><div class="v" style="flex-direction:column;align-items:flex-start">${ops}</div>`;
+  } else {
+    body += `<div class="k">${esc(state.pools[b.pool].label)}</div><div class="v"><input class="num w4" type="number" data-path="blocks.${k}.ratePer10hr" value="${b.ratePer10hr}" min="0" step="1"> pcs per 10 hr</div>`;
+  }
+  const ip = state.pools[b.inspect.pool];
+  body += `<div class="k">${esc(ip.label)}</div><div class="v">` + (ip.kind === 'cmm' ? `setup <input class="num" type="number" data-path="blocks.${k}.inspect.setup" value="${b.inspect.setup}" min="0" step="1"> run <input class="num" type="number" data-path="blocks.${k}.inspect.run" value="${b.inspect.run}" min="0" step="1"> min` : `<input class="num" type="number" data-path="blocks.${k}.inspect.run" value="${b.inspect.run}" min="0" step="0.5"> min each`) + `</div>`;
+  const rework = b.machining === 'ops' ? `rework from <select data-path="blocks.${k}.reworkOp">${b.ops.map((op, i) => `<option value="${i}" ${i === b.reworkOp ? 'selected' : ''}>${esc(op.name)}</option>`).join('')}</select>` : '<span class="note" style="margin:0">rejects re-turned and re-gauged</span>';
+  body += `<div class="k">Yield</div><div class="v"><input class="num w3" type="number" data-path="blocks.${k}.yield" data-pct="1" value="${Math.round(b.yield * 100)}" min="1" max="100" step="1"> % ${rework}</div>`;
+  return `<div class="blk" data-blk="${k}"><div class="head"><span class="name"><i style="background:${blockColor(k)}"></i>${esc(b.label)}</span><button class="tog" data-tog="${k}" aria-expanded="${openBlocks.has(k)}">${openBlocks.has(k) ? 'hide' : 'edit'}</button></div>${openBlocks.has(k) ? `<div class="body">${body}</div>` : ''}</div>`;
+}
+const openBlocks = new Set();
+function renderControls() {
+  $controls.innerHTML = `
+  <div class="sec"><h2>Machines and people on the floor</h2>${POOL_ORDER.map(poolHTML).join('')}
+    <div class="row" style="margin-top:6px"><label>1 supervisor per <input class="num w3" type="number" data-path="supervisorRatio" value="${state.supervisorRatio}" min="1" max="50" step="1"> people</label></div>
+    <p class="note">Running machines = the smaller of machines and people × machines-per-person. Supervisors float; they don't run anything.</p></div>
+  <div class="sec"><h2>Blocks — times in minutes, per block</h2>${BLOCK_ORDER.map(blockHTML).join('')}
+    <p class="note">Bandsaw → machining → inspection. Buffers between stages are unlimited; what piles up shows on the floor and under Results.</p></div>`;
+  renderControlBadges();
+  if (selectedPool) { const el = $controls.querySelector(`.pool[data-pool="${selectedPool}"]`); if (el) el.classList.add('sel'); }
+}
+function renderControlBadges() {
+  if (!results) return;
+  for (const k of POOL_ORDER) {
+    const u = $controls.querySelector(`[data-util="${k}"]`); if (!u) continue;
+    const st = results.stages[k], run = results.running[k], p = state.pools[k];
+    const isBn = results.bottleneckStage === k;
+    let txt = run <= 0 ? 'idle' : (st ? fmt.pct(st.util) + ' busy' : '');
+    if (run > 0 && run < p.machines) txt = `${fmt.n(run, 1)} of ${p.machines} running · ` + txt;
+    u.textContent = txt; u.classList.toggle('hot', isBn);
+    const card = $controls.querySelector(`.pool[data-pool="${k}"]`); if (card) card.classList.toggle('bn', isBn);
+    const pn = $controls.querySelector(`[data-pairnote="${k}"]`);
+    if (pn) { const b = Object.values(results.blocks).find(x => state.blocks[x.key].pool === k); pn.textContent = b && b.machDetail ? `→ ${b.machDetail}` : ''; }
+  }
+}
+
+/* ===================== RESULTS ===================== */
+const $results = document.getElementById('results');
+function renderResults() {
+  const r = results, bn = r.bottleneckBlock ? r.blocks[r.bottleneckBlock] : null;
+  let bnLine = '';
+  if (!bn || !isFinite(r.coreDays)) bnLine = `<p class="bn">Nothing finishes — ${bn ? esc(bn.limit) : 'a stage has no operator'}.</p>`;
+  else bnLine = `<p class="bn">${esc(state.pools[bn.limitKey].label)} ${bn.limitKey === state.blocks[bn.key].pool ? 'is the pace-setter for' : 'holds back'} ${esc(bn.label.toLowerCase())}s.</p>`;
+  const rows = BLOCK_ORDER.map(k => { const b = r.blocks[k]; return `<tr class="${k === r.bottleneckBlock && isFinite(r.coreDays) ? 'bn' : ''}"><td><span class="sw" style="background:${blockColor(k)}"></span>${esc(b.label)}</td><td>${fmt.n(b.final)}</td><td>${fmt.days(b.coreDays)}</td><td class="lim">${esc(b.limit)}</td></tr>`; }).join('');
+  const bars = POOL_ORDER.map(k => { const st = r.stages[k], run = r.running[k], isBn = r.bottleneckStage === k; const u = st ? st.util : 0;
+    return `<div class="n ${isBn ? 'bn' : ''}">${esc(state.pools[k].label)}</div><div class="bar"><i class="${run <= 0 ? 'idle' : (isBn ? 'hot' : '')}" style="width:${run <= 0 ? 100 : Math.round(u * 100)}%"></i></div><div class="p">${run <= 0 ? 'idle' : fmt.pct(u)}</div>`; }).join('');
+  const wips = BLOCK_ORDER.filter(k => r.blocks[k].wipBeforeInspect > 0.005).map(k => { const b = r.blocks[k]; return `<div class="n">${esc(b.label)}s waiting for ${esc(state.pools[state.blocks[k].inspect.pool].label)}</div><div class="v">+${fmt.n(b.wipBeforeInspect)} / day</div>`; }).join('') || `<div class="none">Nothing piles up — every stage keeps pace.</div>`;
+  const s = r.staff;
+  $results.innerHTML = `
+  <div class="hero"><p class="lead">One complete core takes</p><div class="big">${fmt.days(r.coreDays)}<small>${isFinite(r.coreDays) ? 'working days' : ''}</small></div>${bnLine}</div>
+  <div class="rs"><h3>Output per day</h3><table class="t"><thead><tr><th>Block</th><th>per day</th><th>days / core</th><th>limited by</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <div class="rs"><h3>How busy each stage is</h3><div class="bars">${bars}</div></div>
+  <div class="rs"><h3>Work in progress growing</h3><div class="wip">${wips}</div></div>
+  <div class="rs"><h3>People per shift</h3><div class="ppl"><div class="n">Machinists</div><div class="v">${s.machinists}</div><div class="n">CMMers</div><div class="v">${s.cmmers}</div><div class="n">Supervisors (1 per ${state.supervisorRatio})</div><div class="v">${s.supervisors}</div><div class="n tot">Per shift</div><div class="v tot">${s.perShift}</div>${state.shifts > 1 ? `<div class="n">Across ${state.shifts} shifts</div><div class="v">${s.total}</div>` : ''}</div>
+  <p class="note">${state.shifts} shift${state.shifts > 1 ? 's' : ''} × ${state.shiftHours} h = ${fmt.n(r.H / 60, 1)} machine-hours per machine per day. ${state.mode === 'discrete' ? 'Discrete: only whole ops that fit inside a shift count.' : 'Continuous: an op can run across the shift boundary.'}</p></div>`;
+}
+
+/* ===================== WIRING ===================== */
+function setPath(path, value) { const parts = path.split('.'); let o = state; for (let i = 0; i < parts.length - 1; i++) o = o[parts[i]]; o[parts[parts.length - 1]] = value; }
+function getPath(path) { return path.split('.').reduce((o, p) => o[p], state); }
+function recalc() { results = compute(state); renderResults(); renderControlBadges(); if (window.floor) window.floor.update(state, results); saveState(); }
+function syncHeader() {
+  document.getElementById('shifts').value = state.shifts; document.getElementById('shiftHours').value = state.shiftHours;
+  document.getElementById('modeCont').setAttribute('aria-pressed', state.mode === 'continuous'); document.getElementById('modeDisc').setAttribute('aria-pressed', state.mode === 'discrete');
+}
+function clampNum(el, v) { if (isNaN(v)) v = 0; if (el.min !== '') v = Math.max(parseFloat(el.min), v); if (el.max !== '') v = Math.min(parseFloat(el.max), v); return v; }
+$controls.addEventListener('input', e => {
+  const el = e.target, path = el.dataset.path; if (!path) return;
+  if (el.type === 'radio') return; // handled on change
+  if (el.type === 'text') { setPath(path, el.value); return; }
+  let v = clampNum(el, parseFloat(el.value)); if (el.dataset.pct) v = v / 100;
+  if (el.tagName === 'SELECT') v = parseInt(el.value, 10);
+  setPath(path, v); recalc();
+});
+$controls.addEventListener('change', e => {
+  const el = e.target, path = el.dataset.path; if (!path) return;
+  if (el.type === 'radio') { setPath(path, el.value); renderControls(); recalc(); return; }
+  if (el.type === 'text') { renderControls(); recalc(); return; }
+  if (el.tagName === 'SELECT') { setPath(path, parseInt(el.value, 10)); recalc(); return; }
+  const v = clampNum(el, parseFloat(el.value)); el.value = el.dataset.pct ? Math.round(v * 100) : v;
+});
+$controls.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.step) { const el = $controls.querySelector(`input[data-path="${b.dataset.step}"]`); const v = clampNum(el, (parseFloat(el.value) || 0) + parseInt(b.dataset.d, 10)); el.value = v; setPath(b.dataset.step, v); recalc(); return; }
+  if (b.dataset.tog) { const k = b.dataset.tog; openBlocks.has(k) ? openBlocks.delete(k) : openBlocks.add(k); renderControls(); return; }
+  if (b.dataset.addop) { const k = b.dataset.addop, ops = state.blocks[k].ops; ops.push({ name: `Op${(ops.length + 1) * 10}`, setup: 0, cut: 0 }); renderControls(); recalc(); return; }
+  if (b.dataset.delop) { const [k, i] = b.dataset.delop.split(':'); const bl = state.blocks[k]; bl.ops.splice(parseInt(i, 10), 1); bl.reworkOp = Math.min(bl.reworkOp, bl.ops.length - 1); renderControls(); recalc(); return; }
+});
+const pc = $controls; pc.addEventListener('pointerdown', e => { const card = e.target.closest('.pool'); if (card) selectPool(card.dataset.pool, false); });
+function selectPool(k, scroll = true) {
+  selectedPool = k; $controls.querySelectorAll('.pool').forEach(el => el.classList.toggle('sel', el.dataset.pool === k));
+  if (scroll) { const el = $controls.querySelector(`.pool[data-pool="${k}"]`); if (el) { if (window.matchMedia('(max-width: 1000px)').matches) setTab('setup'); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } }
+  if (window.floor) window.floor.select(k);
+}
+document.querySelector('header').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.g === 'shifts') { state.shifts = Math.max(1, Math.min(4, state.shifts + parseInt(b.dataset.d, 10))); syncHeader(); recalc(); }
+  if (b.id === 'modeCont') { state.mode = 'continuous'; syncHeader(); recalc(); }
+  if (b.id === 'modeDisc') { state.mode = 'discrete'; syncHeader(); recalc(); }
+  if (b.id === 'reset') { state = clone(DEFAULT_STATE); try { localStorage.removeItem(LS_KEY); } catch (err) {} syncHeader(); renderControls(); recalc(); }
+});
+document.getElementById('shifts').addEventListener('input', e => { const v = parseInt(e.target.value, 10); if (v >= 1 && v <= 4) { state.shifts = v; recalc(); } });
+document.getElementById('shiftHours').addEventListener('input', e => { const v = parseFloat(e.target.value); if (v > 0 && v <= 24) { state.shiftHours = v; recalc(); } });
+function setTab(t) { document.querySelector('main').dataset.tab = t; document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t)); if (t === 'floor' && window.floor) window.floor.resize(); }
+document.querySelector('nav.tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTab(b.dataset.tab); });
+
+loadState(); syncHeader(); renderControls(); results = compute(state); renderResults(); renderControlBadges();
+</script>
+<script>
+(function () {
+  const wrap = document.getElementById('floor'), canvas = document.getElementById('c3d'), tip = document.getElementById('tip');
+  if (typeof THREE === 'undefined') {
+    wrap.insertAdjacentHTML('beforeend', '<p class="note" style="position:absolute;inset:auto 0 50% 0;text-align:center">The 3D view needs the three.js script, which did not load. Setup and Results still work.</p>');
+    return;
+  }
+  const cvar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const col = n => new THREE.Color(cvar(n));
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  /* ---------- renderer / scene ---------- */
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 500);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x7d8a99, 0.9));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.65); sun.position.set(30, 50, 20); scene.add(sun);
+  const staticG = new THREE.Group(), dyn = new THREE.Group(), partG = new THREE.Group();
+  scene.add(staticG, dyn, partG);
+
+  /* ---------- layout ---------- */
+  const LANE = { hex: -10.5, sr: -3.5, dowel: 3.5, plug: 10.5 };
+  const X = { saw: -17, machStart: -8, wip: 9.5, inspStart: 13.5, out: 23 };
+  const INSP_Z = { cmm: -7 };
+  const POOL_LANE = { hexMill: 'hex', srMill: 'sr', dowelLathe: 'dowel', plugLathe: 'plug', dowelGauge: 'dowel', plugGauge: 'plug' };
+
+  /* ---------- materials ---------- */
+  const matCache = new Map();
+  function mat(color, opts = {}) {
+    const key = (color instanceof THREE.Color ? color.getHexString() : color) + JSON.stringify(opts);
+    if (!matCache.has(key)) matCache.set(key, new THREE.MeshLambertMaterial(Object.assign({ color: new THREE.Color(color) }, opts)));
+    return matCache.get(key);
+  }
+  function flat(color, opacity = 1) {
+    const key = 'f' + new THREE.Color(color).getHexString() + opacity;
+    if (!matCache.has(key)) matCache.set(key, new THREE.MeshBasicMaterial({ color: new THREE.Color(color), transparent: opacity < 1, opacity, depthWrite: opacity >= 1 }));
+    return matCache.get(key);
+  }
+  let C = {};
+  function readColors() {
+    matCache.forEach(m => m.dispose()); matCache.clear();
+    const steel = col('--steel');
+    C = { floor: col('--floor'), grid: col('--grid'), ink: col('--ink'), muted: col('--muted'), panel: col('--panel'),
+      ok: col('--ok'), warn: col('--warn'), hot: col('--hot'), idle: col('--idle'), steel,
+      body: isDark() ? steel.clone().lerp(new THREE.Color(0x3c4a58), 0.6) : steel.clone().lerp(new THREE.Color(0x8c98a4), 0.55), dark: new THREE.Color(0x36424e), granite: new THREE.Color(0x2f3640),
+      skin: new THREE.Color(0xe4bf9a), machinist: new THREE.Color(0x35506a), cmmer: new THREE.Color(0x5d6f5a), supervisor: new THREE.Color(0xd2691e),
+      blocks: { hex: col('--hex'), sr: col('--sr'), dowel: col('--dowel'), plug: col('--plug') } };
+    scene.background = C.floor.clone().lerp(new THREE.Color(0xffffff), 0.12);
+    if (isDark()) scene.background = C.floor.clone().lerp(new THREE.Color(0x000000), 0.35);
+  }
+  function isDark() { const t = document.documentElement.getAttribute('data-theme'); if (t) return t === 'dark'; return window.matchMedia('(prefers-color-scheme: dark)').matches; }
+
+  /* ---------- helpers ---------- */
+  function box(w, h, d, m, x = 0, y = 0, z = 0) { const g = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); g.position.set(x, y, z); return g; }
+  function cyl(rt, rb, h, m, x = 0, y = 0, z = 0, seg = 16) { const g = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m); g.position.set(x, y, z); return g; }
+  const labelCache = new Map();
+  function label(text, size = 0.026, color = null, bg = true) {
+    const key = text + '|' + size + '|' + (color ? color.getHexString() : '') + bg + isDark();
+    let tex = labelCache.get(key);
+    if (!tex) {
+      const dpr = 2, fs = 26, pad = 10, cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+      ctx.font = `500 ${fs}px Archivo, "Helvetica Neue", Arial, sans-serif`;
+      const w = Math.ceil(ctx.measureText(text).width) + pad * 2, h = fs + pad * 1.4;
+      cv.width = w * dpr; cv.height = h * dpr; ctx.scale(dpr, dpr);
+      if (bg) { ctx.fillStyle = '#' + C.panel.getHexString(); ctx.globalAlpha = 0.88; roundRect(ctx, 0, 0, w, h, 4); ctx.fill(); ctx.globalAlpha = 1; }
+      ctx.font = `500 ${fs}px Archivo, "Helvetica Neue", Arial, sans-serif`; ctx.fillStyle = '#' + (color || C.ink).getHexString(); ctx.textBaseline = 'middle';
+      ctx.fillText(text, pad, h / 2 + 1);
+      tex = new THREE.CanvasTexture(cv); tex.minFilter = THREE.LinearFilter; tex.userData = { w, h }; labelCache.set(key, tex);
+    }
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, sizeAttenuation: false }));
+    s.scale.set(size * tex.userData.w / tex.userData.h, size, 1); s.userData.isLabel = true; return s;
+  }
+  function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function disposeGroup(g) { g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.isSprite && o.material) o.material.dispose(); }); while (g.children.length) g.remove(g.children[0]); }
+
+  /* ---------- machines ---------- */
+  function mkMill() { const g = new THREE.Group(); g.add(box(1.7, 1.0, 1.5, mat(C.body), 0, 0.5, 0), box(1.5, 0.95, 1.1, mat(C.body), 0, 1.47, -0.1), box(1.1, 0.5, 0.06, mat(C.dark), 0, 1.45, 0.46), box(0.3, 0.7, 0.3, mat(C.dark), 0, 2.2, -0.3)); return g; }
+  function mkLathe() { const g = new THREE.Group(); g.add(box(2.7, 0.8, 1.0, mat(C.body), 0, 0.4, 0), box(0.8, 0.8, 0.9, mat(C.body), -0.9, 1.2, 0), box(0.5, 0.35, 0.5, mat(C.dark), 0.9, 0.98, 0)); const ch = cyl(0.26, 0.26, 0.35, mat(C.dark), -0.35, 1.2, 0, 20); ch.rotation.z = Math.PI / 2; ch.userData.spin = true; g.add(ch); return g; }
+  function mkSaw() { const g = new THREE.Group(); g.add(box(1.3, 0.9, 1.3, mat(C.body), 0, 0.45, 0), box(1.5, 0.3, 0.35, mat(C.body), 0, 1.75, 0), box(1.2, 0.7, 0.05, mat(C.dark), 0, 1.3, 0), box(0.25, 0.9, 0.25, mat(C.dark), -0.5, 1.35, 0)); return g; }
+  function mkCMM() { const g = new THREE.Group(); g.add(box(2.2, 0.6, 1.7, mat(C.granite), 0, 0.3, 0), box(0.16, 1.7, 0.2, mat(C.body), 0, 1.45, -0.75), box(0.16, 1.7, 0.2, mat(C.body), 0, 1.45, 0.75), box(0.16, 0.16, 1.9, mat(C.body), 0, 2.25, 0), box(0.14, 0.5, 0.14, mat(C.dark), 0, 1.85, 0.15), cyl(0.03, 0.03, 0.5, mat(C.dark), 0, 1.35, 0.15, 6)); return g; }
+  function mkGauge() { const g = new THREE.Group(); g.add(box(1.6, 0.08, 0.9, mat(C.body), 0, 0.85, 0)); for (const [x, z] of [[-0.7, -0.35], [0.7, -0.35], [-0.7, 0.35], [0.7, 0.35]]) g.add(box(0.08, 0.85, 0.08, mat(C.dark), x, 0.42, z)); g.add(box(0.6, 0.12, 0.4, mat(C.dark), -0.35, 0.95, 0), cyl(0.06, 0.06, 0.3, mat(C.dark), 0.4, 1.04, -0.1), cyl(0.06, 0.06, 0.3, mat(C.dark), 0.55, 1.04, 0.15)); return g; }
+  const MK = { mill: mkMill, lathe: mkLathe, saw: mkSaw, cmm: mkCMM, gauge: mkGauge };
+  function mkPerson(color) { const g = new THREE.Group(); g.add(cyl(0.2, 0.24, 0.75, mat(color), 0, 0.5, 0, 10), new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10), mat(C.skin))); g.children[1].position.y = 1.05; return g; }
+
+  function clusterPositions(kind, n, cx, cz) {
+    const dx = kind === 'lathe' ? 3.1 : (kind === 'cmm' ? 2.8 : 2.5), perRow = kind === 'lathe' ? 5 : 6, dz = kind === 'cmm' ? 2.6 : 2.5;
+    const pts = [], rows = Math.max(1, Math.ceil(n / perRow));
+    for (let i = 0; i < n; i++) { const r = Math.floor(i / perRow), c = i % perRow, inRow = Math.min(perRow, n - r * perRow); const rowStartX = cx + (c) * dx; pts.push([rowStartX, cz + (r - (rows - 1) / 2) * dz, inRow]); }
+    return pts;
+  }
+
+  /* ---------- state ---------- */
+  let S = null, R = null, selected = null, anchors = {}, paths = {}, emitters = {}, rings = [], selRings = [], spinners = [];
+  const particles = [];
+  const PGEO = {};
+  function particleGeo(k) {
+    if (!PGEO[k]) PGEO[k] = k === 'hex' ? new THREE.CylinderGeometry(0.3, 0.3, 0.26, 6) : k === 'sr' ? new THREE.BoxGeometry(0.55, 0.26, 0.32) : k === 'dowel' ? new THREE.CylinderGeometry(0.07, 0.07, 0.55, 8) : new THREE.CylinderGeometry(0.11, 0.11, 0.18, 10);
+    return PGEO[k];
+  }
+
+  function buildStatic() {
+    disposeGroup(staticG);
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(70, 40), mat(C.floor)); fl.rotation.x = -Math.PI / 2; fl.position.set(3, -0.02, -3); staticG.add(fl);
+    const grid = new THREE.GridHelper(70, 35, C.grid, C.grid); grid.position.set(3, 0, -3); grid.material.transparent = true; grid.material.opacity = 0.7; staticG.add(grid);
+    for (const k in LANE) { const band = new THREE.Mesh(new THREE.PlaneGeometry(36, 6.4), flat(C.blocks[k], isDark() ? 0.09 : 0.07)); band.rotation.x = -Math.PI / 2; band.position.set(X.machStart + 15.5, 0.005, LANE[k]); staticG.add(band); }
+    const zone = (t, x) => { const s = label(t, 0.02, C.muted, false); s.position.set(x, 0.3, -17.5); staticG.add(s); };
+    zone('Bandsaw', X.saw + 0.6); zone('Machining', X.machStart + 6); zone('Inspection', X.inspStart + 2.6); zone('Finished', X.out);
+    // output pads
+    for (const k in LANE) { const pad = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), flat(C.blocks[k], 0.25)); pad.rotation.x = -Math.PI / 2; pad.position.set(X.out, 0.01, LANE[k]); staticG.add(pad); }
+    const walk = new THREE.Mesh(new THREE.PlaneGeometry(44, 2.4), flat(C.grid, 0.5)); walk.rotation.x = -Math.PI / 2; walk.position.set(3, 0.006, 16); staticG.add(walk);
+  }
+
+  function statusColor(k) { if (R.running[k] <= 0) return C.idle; if (R.bottleneckStage === k) return C.hot; return C.ok; }
+
+  function build() {
+    disposeGroup(dyn); rings = []; selRings = []; spinners = []; anchors = {};
+    if (!S || !R) return;
+    for (const k in S.pools) {
+      const p = S.pools[k], run = R.running[k], n = Math.max(0, Math.min(40, p.machines));
+      let cx, cz;
+      if (k === 'bandsaw') { cx = X.saw; cz = 0; } else if (k === 'cmm') { cx = X.inspStart; cz = INSP_Z.cmm; } else if (p.kind === 'gauge') { cx = X.inspStart; cz = LANE[POOL_LANE[k]]; } else { cx = X.machStart; cz = LANE[POOL_LANE[k]]; }
+      const pts = k === 'bandsaw' ? Array.from({ length: n }, (_, i) => [cx, (i - (n - 1) / 2) * 2.6, 1]) : clusterPositions(p.kind, n, cx, cz);
+      const grp = new THREE.Group(); grp.userData.pool = k; dyn.add(grp);
+      const stc = statusColor(k), isBn = R.bottleneckStage === k;
+      let sumX = 0, sumZ = 0;
+      pts.forEach(([x, z], i) => {
+        const m = MK[p.kind](); m.position.set(x, 0, z); m.userData.pool = k; grp.add(m);
+        m.traverse(o => { o.userData.pool = k; if (o.userData.spin) spinners.push({ o, on: i < run }); });
+        const light = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), flat(i < Math.ceil(run - 1e-6) ? stc : C.idle)); light.position.set(x + 0.6, p.kind === 'gauge' ? 1.2 : (p.kind === 'cmm' ? 2.5 : 2.15), z + 0.45); light.userData.pool = k; grp.add(light);
+        const ring = new THREE.Mesh(new THREE.RingGeometry(p.kind === 'lathe' ? 1.7 : 1.25, p.kind === 'lathe' ? 1.95 : 1.5, 40), flat(C.hot, 0.85)); ring.rotation.x = -Math.PI / 2; ring.position.set(x, 0.02, z); ring.visible = isBn; ring.userData.pool = k; grp.add(ring); rings.push(ring);
+        const sr = new THREE.Mesh(new THREE.RingGeometry(p.kind === 'lathe' ? 1.7 : 1.25, p.kind === 'lathe' ? 1.85 : 1.4, 40), flat(C.steel, 0.9)); sr.rotation.x = -Math.PI / 2; sr.position.set(x, 0.03, z); sr.visible = selected === k; sr.userData.pool = k; grp.add(sr); selRings.push(sr);
+        sumX += x; sumZ += z;
+      });
+      // people in front of machines
+      const people = Math.max(0, Math.min(40, p.staffCount)), pc = p.staff === 'machinist' ? C.machinist : C.cmmer;
+      for (let i = 0; i < people; i++) { const at = pts[Math.min(i, pts.length - 1)] || [cx, cz]; const off = i < pts.length ? 0 : (i - pts.length + 1) * 0.6; const per = mkPerson(pc); per.position.set(at[0] - 0.55 + off, 0, at[1] + 1.35); per.userData.pool = k; grp.add(per); }
+      anchors[k] = n > 0 ? { x: sumX / n, z: sumZ / n, w: (Math.min(n, p.kind === 'lathe' ? 5 : 6) - 1) * (p.kind === 'lathe' ? 3.1 : 2.5) } : { x: cx, z: cz, w: 0 };
+      // pool label
+      const st = R.stages[k];
+      const txt = `${p.label} · ${run <= 0 ? 'idle' : (run < p.machines ? `${run % 1 ? run.toFixed(1) : run} of ${p.machines} running` : `${p.machines} running`)}${run > 0 && st ? ` · ${Math.round(st.util * 100)}%` : ''}${isBn ? ' · bottleneck' : ''}`;
+      const lb = label(txt, 0.017, isBn ? C.hot : C.ink); const lblY = { bandsaw: 2.4, hexMill: 3.6, srMill: 2.7, dowelLathe: 3.6, plugLathe: 2.7, cmm: 3.9, dowelGauge: 2.3, plugGauge: 3.1 }[k] || 3.4;
+      lb.position.set(anchors[k].x, lblY, anchors[k].z + (k === 'bandsaw' ? 1.8 : -0.4)); lb.userData.pool = k; grp.add(lb);
+      if (n === 0) { const ghost = box(1.4, 0.2, 1.2, flat(C.idle, 0.35), cx, 0.1, cz); ghost.userData.pool = k; grp.add(ghost); }
+    }
+    // supervisors on the walkway
+    const sup = R.staff.supervisors;
+    for (let i = 0; i < Math.min(sup, 20); i++) { const per = mkPerson(C.supervisor); per.position.set(3 + (i - (Math.min(sup, 20) - 1) / 2) * 1.6, 0, 16); dyn.add(per); }
+    if (sup > 0) { const lb = label(`${sup} supervisor${sup > 1 ? 's' : ''} floating`, 0.017, C.muted); lb.position.set(3, 2.2, 16.4); dyn.add(lb); }
+    // lane labels, output labels, WIP piles, paths
+    paths = {};
+    for (const k of Object.keys(LANE)) {
+      const b = R.blocks[k], sb = S.blocks[k], z = LANE[k];
+            const ol = label(b.final > 0 ? `${b.final >= 100 ? Math.round(b.final).toLocaleString() : b.final.toFixed(1)} ${sb.label.toLowerCase()}s / day` : `no ${sb.label.toLowerCase()}s`, 0.018, b.final > 0 ? C.blocks[k] : C.hot); ol.position.set(X.out, 1.6, z); dyn.add(ol);
+      // WIP pile
+      const wip = b.wipBeforeInspect || 0;
+      if (wip > 0.005) {
+        const n = Math.max(1, Math.min(30, Math.round(Math.log2(1 + wip * 6) * 1.6)));
+        for (let i = 0; i < n; i++) { const layer = Math.floor(i / 4), j = i % 4; const c = box(0.5, 0.36, 0.5, mat(C.warn), X.wip + (j % 2) * 0.58 - 0.29, 0.18 + layer * 0.37, z + Math.floor(j / 2) * 0.58 - 0.29 + (layer % 2) * 0.05); dyn.add(c); }
+        const wl = label(`+${wip >= 100 ? Math.round(wip) : wip.toFixed(1)} / day waiting`, 0.016, C.warn); wl.position.set(X.wip, 0.36 + Math.ceil(n / 4) * 0.37 + 0.9, z); dyn.add(wl);
+      }
+      const mA = anchors[sb.pool], iA = anchors[sb.inspect.pool], saw = anchors.bandsaw;
+      const pts = [new THREE.Vector3(saw.x + 0.9, 1.35, saw.z), new THREE.Vector3(X.machStart - 1.8, 0.9, z), new THREE.Vector3(mA.x + mA.w / 2, 1.5, mA.z), new THREE.Vector3(X.wip, 0.9, z), new THREE.Vector3(iA.x + iA.w / 2, sb.inspect.pool === 'cmm' ? 1.9 : 1.3, iA.z), new THREE.Vector3(X.out, 0.9, z)];
+      paths[k] = makePath(pts, 3);
+      const em = emitters[k] || (emitters[k] = { acc: 0 });
+      em.rate = b.final > 0 || b.millOut > 0 ? Math.min(2.6, 0.3 + 0.65 * Math.log10(1 + Math.max(b.millOut, 0))) : 0;
+      em.drop = b.millOut > 0 ? Math.max(0, Math.min(1, wip / b.millOut)) : 0;
+      em.machRate = b.machRate;
+    }
+    for (const pt of particles) { const np = paths[pt.k]; if (np) { pt.d = pt.d / pt.path.total * np.total; pt.path = np; } }
+  }
+  function makePath(pts, wipIndex) {
+    const segs = []; let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) { const len = pts[i].distanceTo(pts[i + 1]); segs.push({ a: pts[i], b: pts[i + 1], len, start: total }); total += len; }
+    const wipAt = segs[wipIndex] ? segs[wipIndex].start : total;
+    return { segs, total, wipAt, at(d, out) { for (const s of segs) { if (d <= s.start + s.len || s === segs[segs.length - 1]) { const t = s.len > 0 ? Math.max(0, Math.min(1, (d - s.start) / s.len)) : 0; return out.copy(s.a).lerp(s.b, t); } } return out.copy(pts[pts.length - 1]); } };
+  }
+
+  /* ---------- particles ---------- */
+  const tmpV = new THREE.Vector3();
+  function spawn(k) {
+    if (particles.length > 260) return;
+    const m = new THREE.Mesh(particleGeo(k), mat(C.blocks[k])); if (k === 'dowel') m.rotation.z = Math.PI / 2;
+    const pt = { k, mesh: m, d: 0, path: paths[k], dropped: null }; particles.push(pt); partG.add(m);
+  }
+  function stepParticles(dt) {
+    const speed = (reduced.matches ? 2.2 : 5.5) * dt;
+    for (const k in emitters) { const e = emitters[k]; if (!paths[k] || e.rate <= 0) { e.acc = 0; continue; } e.acc += e.rate * dt; while (e.acc >= 1) { e.acc -= 1; spawn(k); } }
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i], before = p.d; p.d += speed;
+      if (before < p.path.wipAt && p.d >= p.path.wipAt && p.dropped === null) { p.dropped = Math.random() < emitters[p.k].drop; }
+      if (p.dropped || p.d >= p.path.total) { partG.remove(p.mesh); particles.splice(i, 1); continue; }
+      p.path.at(p.d, tmpV); p.mesh.position.copy(tmpV); p.mesh.position.y += Math.sin(p.d * 2.1) * 0.05;
+      if (p.k === 'hex' || p.k === 'sr') p.mesh.rotation.y += dt * 0.8;
+    }
+  }
+
+  /* ---------- camera / orbit ---------- */
+  const target = new THREE.Vector3(3, 0.5, -2); let radius = 66, theta = 1.2, phi = 0.82, userZoomed = false;
+  const BOUNDS = [];
+  for (const x of [-18.5, 25.5]) for (const y of [0, 3.4]) for (const z of [-18.5, 17]) BOUNDS.push(new THREE.Vector3(x, y, z));
+  const _p = new THREE.Vector3();
+  function fits(r) { radius = r; placeCamera(); camera.updateMatrixWorld(); for (const b of BOUNDS) { _p.copy(b).project(camera); if (Math.abs(_p.x) > 0.94 || Math.abs(_p.y) > 0.9) return false; } return true; }
+  function fit() { // smallest radius at which the whole floor is on screen, for the current aspect and angle
+    let lo = 18, hi = 160; for (let i = 0; i < 18; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
+    radius = hi; placeCamera();
+  }
+  function placeCamera() { camera.position.set(target.x + radius * Math.sin(phi) * Math.sin(theta), target.y + radius * Math.cos(phi), target.z + radius * Math.sin(phi) * Math.cos(theta)); camera.lookAt(target); }
+  let drag = null, moved = 0; const touches = new Map();
+  canvas.addEventListener('pointerdown', e => { canvas.setPointerCapture(e.pointerId); touches.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (touches.size === 1) { drag = { x: e.clientX, y: e.clientY, btn: e.button, shift: e.shiftKey }; moved = 0; } else drag = null; hideTip(); });
+  canvas.addEventListener('pointermove', e => {
+    if (touches.has(e.pointerId)) {
+      const prev = touches.get(e.pointerId);
+      if (touches.size === 2) { const other = [...touches.entries()].find(([id]) => id !== e.pointerId)[1]; const d0 = Math.hypot(prev.x - other.x, prev.y - other.y), d1 = Math.hypot(e.clientX - other.x, e.clientY - other.y); userZoomed = true; if (d0 > 0) radius = Math.max(12, Math.min(140, radius * d0 / d1)); pan((e.clientX - prev.x) * 0.5, (e.clientY - prev.y) * 0.5); }
+      else if (drag) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; moved += Math.abs(dx) + Math.abs(dy); if (drag.btn === 2 || drag.shift) pan(dx, dy); else { theta -= dx * 0.006; phi = Math.max(0.18, Math.min(1.5, phi - dy * 0.006)); } drag.x = e.clientX; drag.y = e.clientY; }
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY }); placeCamera(); document.getElementById('hint').classList.add('hide');
+    } else if (e.pointerType === 'mouse') hover(e);
+  });
+  function endPointer(e) { touches.delete(e.pointerId); if (drag && moved < 6 && e.pointerType !== 'mouse' || (drag && moved < 6 && e.button === 0)) pick(e, e.pointerType !== 'mouse'); drag = null; }
+  canvas.addEventListener('pointerup', endPointer); canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('pointerleave', () => { if (!drag) hideTip(); });
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  canvas.addEventListener('wheel', e => { e.preventDefault(); userZoomed = true; radius = Math.max(12, Math.min(140, radius * (1 + e.deltaY * 0.0012))); placeCamera(); }, { passive: false });
+  function pan(dx, dy) { const right = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); right.crossVectors(fwd, up).normalize(); const f = radius * 0.0016; target.addScaledVector(right, -dx * f); const flatFwd = new THREE.Vector3(fwd.x, 0, fwd.z).normalize(); target.addScaledVector(flatFwd, -dy * f); }
+
+  /* ---------- picking / tooltip ---------- */
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  function poolAt(e) {
+    const r = canvas.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera); const hits = ray.intersectObjects(dyn.children, true);
+    for (const h of hits) { let o = h.object; if (o.userData.isLabel) continue; while (o && !o.userData.pool) o = o.parent; if (o && o.userData.pool) return o.userData.pool; }
+    return null;
+  }
+  let hoverK = null;
+  function hover(e) { const k = poolAt(e); canvas.style.cursor = k ? 'pointer' : 'grab'; if (k) showTip(k, e.clientX, e.clientY); else hideTip(); hoverK = k; }
+  function tipHTML(k) {
+    const p = S.pools[k], run = R.running[k], st = R.stages[k];
+    const makes = Object.values(R.blocks).filter(b => S.blocks[b.key].pool === k || S.blocks[b.key].inspect.pool === k || k === 'bandsaw');
+    const what = makes.map(b => `${b.label}s ${b.final >= 100 ? Math.round(b.final) : b.final.toFixed(1)}/day`).join(', ');
+    return `<b>${p.label}${R.bottleneckStage === k ? ' — bottleneck' : ''}</b>${p.machines} ${p.kind === 'gauge' ? 'station' : 'machine'}${p.machines !== 1 ? 's' : ''}, ${p.staffCount} ${p.staff === 'machinist' ? 'machinist' : 'CMMer'}${p.staffCount !== 1 ? 's' : ''} → ${run % 1 ? run.toFixed(1) : run} running${st && run > 0 ? `, ${Math.round(st.util * 100)}% busy` : ''}<div class="m">${what}</div><div class="m">Click to edit</div>`;
+  }
+  function showTip(k, x, y) { tip.innerHTML = tipHTML(k); tip.style.display = 'block'; const r = wrap.getBoundingClientRect(); let lx = x - r.left + 14, ly = y - r.top + 14; if (lx + tip.offsetWidth > r.width - 8) lx = x - r.left - tip.offsetWidth - 10; if (ly + tip.offsetHeight > r.height - 8) ly = y - r.top - tip.offsetHeight - 10; tip.style.left = lx + 'px'; tip.style.top = ly + 'px'; }
+  function hideTip() { tip.style.display = 'none'; }
+  let tipTimer = null;
+  function pick(e, isTouch) { const k = poolAt(e); if (!k) { if (isTouch) hideTip(); return; } if (isTouch) { showTip(k, e.clientX, e.clientY); clearTimeout(tipTimer); tipTimer = setTimeout(hideTip, 2600); } if (typeof selectPool === 'function') selectPool(k, true); }
+
+  /* ---------- loop ---------- */
+  let last = performance.now(), t0 = last, running = true;
+  function frame(now) {
+    requestAnimationFrame(frame); if (!running) return;
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    stepParticles(dt);
+    const pulse = reduced.matches ? 0.85 : 0.55 + 0.45 * Math.sin((now - t0) / 260);
+    for (const r of rings) r.material.opacity = pulse;
+    if (!reduced.matches) for (const s of spinners) if (s.on) s.o.rotation.x += dt * 6;
+    renderer.render(scene, camera);
+  }
+  document.addEventListener('visibilitychange', () => { running = !document.hidden; last = performance.now(); });
+  function resize() { const w = wrap.clientWidth, h = wrap.clientHeight; if (w < 2 || h < 2) return; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); if (!userZoomed) fit(); }
+  new ResizeObserver(resize).observe(wrap);
+  function retheme() { readColors(); labelCache.forEach(t => t.dispose()); labelCache.clear(); buildStatic(); build(); for (const p of particles) p.mesh.material = mat(C.blocks[p.k]); }
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', retheme);
+  new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  readColors(); buildStatic(); placeCamera(); resize(); requestAnimationFrame(frame);
+  document.fonts && document.fonts.ready.then(() => { labelCache.forEach(t => t.dispose()); labelCache.clear(); if (S) { buildStatic(); build(); } });
+
+  window.floor = {
+    update(s, r) { S = s; R = r; build(); },
+    select(k) { selected = k; for (const sr of selRings) sr.visible = sr.userData.pool === k; },
+    resize,
+  };
+  if (typeof state !== 'undefined' && typeof results !== 'undefined' && results) window.floor.update(state, results);
+})();
+</script>
+
+
+</body>
+</html>
